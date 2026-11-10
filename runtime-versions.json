@@ -1,0 +1,9 @@
+{
+  "pyodide": "0.28.3",
+  "numpy": "2.2.5",
+  "pillow": "11.3.0",
+  "pypdf": "6.10.0",
+  "reportlab": "4.4.9",
+  "charset-normalizer": "3.4.4",
+  "pdfjs-dist": "5.4.296"
+}

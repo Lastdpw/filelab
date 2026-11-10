@@ -1,0 +1,7 @@
+{
+  "sizes": {"original":305183,"standard":219012,"small":170701},
+  "preservedText":"FILELAB SELECTABLE TEXT",
+  "functionalChecks":"passed",
+  "model":{"correct":144,"total":192,"matrix":[[36,0,12,0],[0,36,0,12],[12,0,36,0],[0,12,0,36]]},
+  "passed":true
+}
