@@ -71,5 +71,19 @@ class OrientationModel:
         ], axis=0)
         winner = int(votes.argmax())
         confidence = float(votes[winner])
-        has_ink = np.mean(ink > 30) >= 0.006
-        return ANGLES[winner], confidence, bool(has_ink and confidence >= 0.60)
+        ink_fraction = np.mean(ink > 30)
+        if ink_fraction >= 0.006 and confidence >= 0.60:
+            return ANGLES[winner], confidence, True
+
+        # On grid paper, normalizing the contrast can strengthen the grid.
+        # Check the original and an inset crop so the edges alone cannot decide.
+        if ink_fraction >= 0.035:
+            original_angle, original_confidence = self.predict(gray)
+            if original_confidence >= 0.75:
+                x, y = round(gray.width * 0.05), round(gray.height * 0.05)
+                inset = gray.crop((x, y, gray.width - x, gray.height - y))
+                inset_angle, inset_confidence = self.predict(inset)
+                if original_angle == inset_angle and inset_confidence >= 0.75:
+                    return original_angle, min(original_confidence, inset_confidence), True
+
+        return ANGLES[winner], confidence, False
