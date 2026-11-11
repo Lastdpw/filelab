@@ -1,11 +1,12 @@
 """Browser adapter: original FileLab logic runs locally in Pyodide."""
 from __future__ import annotations
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from io import BytesIO
 from pathlib import Path
 import hashlib, json, math, secrets, sys, tempfile, time, types
 sys.modules['pypdfium2'] = types.ModuleType('pypdfium2')
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from documents import MAX_PAGES, MAX_PIXELS, MAX_SOURCE_BYTES, MIB, PRESETS, Page, create_pdf, image_bytes, on_white, page_range, quality_notes, read_pages
 from orientation import OrientationModel, rotate
 ROOT=Path.cwd()
@@ -26,6 +27,60 @@ def browser_image(self,max_edge):
 
 Page.image=browser_image
 
+@dataclass(frozen=True)
+class PhotoAdjustments:
+    preset: str = "color"
+    brightness: int = 0
+    contrast: int = 0
+    sharpness: int = 0
+
+
+@dataclass
+class PhotoPage(Page):
+    adjustments: PhotoAdjustments = field(default_factory=PhotoAdjustments)
+
+    def image(self, max_edge):
+        image = super().image(max_edge)
+        edits = self.adjustments
+        if edits == PhotoAdjustments():
+            return image
+
+        image = on_white(image)
+        if edits.preset != "color":
+            image = ImageOps.grayscale(image)
+        if edits.preset == "scan":
+            # Estimate the paper tone at low resolution to suppress broad shadows.
+            size = (max(1, image.width // 8), max(1, image.height // 8))
+            background = image.resize(size, Image.Resampling.BILINEAR)
+            background = background.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(2))
+            background = background.resize(image.size, Image.Resampling.BILINEAR)
+            values = np.asarray(image, dtype=np.float32)
+            values /= np.maximum(np.asarray(background), 32)
+            values *= 265
+            values.clip(0, 255, out=values)
+            image = Image.fromarray(values.astype(np.uint8))
+        if edits.brightness:
+            image = ImageEnhance.Brightness(image).enhance(1 + edits.brightness / 100)
+        if edits.contrast:
+            image = ImageEnhance.Contrast(image).enhance(1 + edits.contrast / 100)
+        if edits.sharpness:
+            image = ImageEnhance.Sharpness(image).enhance(1 + edits.sharpness / 50)
+        return image.convert("RGB")
+
+
+def photo_adjustments(data):
+    preset = data.get("preset")
+    if preset not in ("color", "gray", "scan"):
+        raise ValueError("Фото сүзгісін таңдаңыз.")
+    levels = {}
+    for name, low, high in (("brightness", -50, 50), ("contrast", -50, 50), ("sharpness", 0, 100)):
+        value = data.get(name)
+        if type(value) is not int or not low <= value <= high:
+            raise ValueError("Өңдеу мәні рұқсат етілген аралықтан тыс.")
+        levels[name] = value
+    return PhotoAdjustments(preset=preset, **levels)
+
+
 @dataclass
 class Item:
     page: Page
@@ -38,7 +93,7 @@ class Item:
     def inspect(self, orient=True):
         self.notes = quality_notes(self.page.image(500))
         if orient:
-            image = on_white(self.page.image(600))
+            image = on_white(Page.image(self.page, 600))
             if self.page.index is None:
                 self.predicted, self.vote, confident = MODEL.predict_photo(image)
             else:
@@ -58,6 +113,7 @@ class Item:
         return dict(id=self.id, title=self.page.title, rotation=self.page.rotation,
                     notes=self.notes, orientation=self.orientation,
                     predicted=self.predicted, vote=round(self.vote, 4),
+                    photo=asdict(self.page.adjustments) if isinstance(self.page, PhotoPage) else None,
                     kind="PDF" if self.page.index is not None else "Сурет")
 
 
@@ -139,6 +195,8 @@ class Session:
                 raise ValueError("Бетті ауыстыру үшін бір сурет немесе бір беттік PDF таңдаңыз.")
             added = []
             for page in pages:
+                if page.index is None:
+                    page = PhotoPage(page.path, page.data)
                 item = Item(page)
                 # Keep the disk path private; display the original upload name.
                 item.inspect()
@@ -225,9 +283,22 @@ def dispatch(action,data):
             item.page.rotation=(item.page.rotation+data['angle'])%360;item.orientation='Қолмен бұрылды'
         else:item.inspect(orient=action=='orient')
         s.invalidate();prune()
+    elif action=='photo-filter':
+        item = s.item(data['id'])
+        if not isinstance(item.page, PhotoPage):
+            raise ValueError("Фото сүзгілері JPG және PNG суреттеріне қолданылады.")
+        edits = photo_adjustments(data)
+        if edits != item.page.adjustments:
+            item.page = replace(item.page, adjustments=edits)
+            item.inspect(orient=False)
+            s.invalidate()
     elif action=='image':
         item=s.item(data['id'])
-        page=replace(item.page,rotation=0) if data.get('original') else item.page
+        page = item.page
+        if data.get('original'):
+            page = replace(page, rotation=0)
+            if isinstance(page, PhotoPage):
+                page.adjustments = PhotoAdjustments()
         kind=data.get('format')
         if kind in ('png','jpg'):return dict(bytes=image_bytes(page,'.'+kind),mime='image/png' if kind=='png' else 'image/jpeg')
         stream=BytesIO();on_white(page.image(180 if data.get('thumb') else 1000)).save(stream,'JPEG',quality=88)

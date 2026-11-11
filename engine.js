@@ -6,9 +6,20 @@ const pending=new Map(), urls=new Map();
 worker.onmessage=({data})=>{const p=pending.get(data.id);if(!p)return;pending.delete(data.id);data.error?p.reject(new Error(data.error)):p.resolve(data.result);};
 worker.onerror=()=>{for(const p of pending.values())p.reject(new Error('Өңдеу модулінде қате шықты. Бетті жаңартыңыз.'));pending.clear();};
 function rpc(action,data={}){return new Promise((resolve,reject)=>{const id=++sequence;pending.set(id,{resolve,reject});worker.postMessage({id,action,data});});}
-function dropUrls(keepIds=[]){for(const [key,url] of urls)if(!keepIds.includes(key.split(':')[0])){URL.revokeObjectURL(url);urls.delete(key);}}
+function imageKey(page, original, thumb){
+  const edits=original?'original':JSON.stringify([page.rotation,page.photo]);
+  return `${page.id}:${edits}:${thumb}`;
+}
+function dropUrls(pages){
+  const keep=new Set(pages.flatMap(page=>[
+    imageKey(page,false,true), imageKey(page,false,false), imageKey(page,true,false)
+  ]));
+  for(const [key,url] of urls){
+    if(!keep.has(key)){URL.revokeObjectURL(url);urls.delete(key);}
+  }
+}
 async function imageUrl(page,original=false,thumb=false){
-  const key=`${page.id}:${page.rotation}:${original}:${thumb}`;
+  const key=imageKey(page,original,thumb);
   if(urls.has(key))return urls.get(key);
   const result=await rpc('image',{id:page.id,original,thumb});
   const url=URL.createObjectURL(new Blob([result.bytes],{type:result.mime}));
@@ -16,7 +27,7 @@ async function imageUrl(page,original=false,thumb=false){
 }
 async function withImages(state){
   if(!state.pages)return state;
-  dropUrls(state.pages.map(p=>p.id));
+  dropUrls(state.pages);
   for(const page of state.pages)page.thumb=await imageUrl(page,false,true);
   return state;
 }

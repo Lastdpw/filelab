@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; font-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="description" content="Файлдарды реттеп, тексеріп, тапсырмаға дайын PDF жасаңыз. Барлығы осы компьютерде.">
   <title>FileLab · Студенттің файл шеберханасы</title>
-  <link rel="stylesheet" href="./style.css"><script type="module" src="./app.js?v=3"></script>
+  <link rel="stylesheet" href="./style.css?v=4"><script type="module" src="./app.js?v=4"></script>
 </head>
 <body>
 <header class="topbar">
@@ -33,6 +33,29 @@
       </div>
       <div class="page-info"><strong id="pageTitle">Бет таңдалмады</strong><span id="pageNotes" class="muted">Суреттер мен PDF беттері осында көрсетіледі.</span></div>
       <div class="edit-toolbar"><div class="rotate-group"><button id="left" title="Солға 90° бұру" aria-label="Солға 90° бұру" disabled>↶ <span>90°</span></button><button id="right" title="Оңға 90° бұру" aria-label="Оңға 90° бұру" disabled>↷ <span>90°</span></button></div><button id="quality" disabled>Сапаны тексеру</button><button id="orient" disabled>Бағытты анықтау</button></div>
+      <fieldset id="photoTools" class="photo-tools" hidden>
+        <legend>Фото өңдеу</legend>
+        <div class="photo-preset">
+          <label for="photoPreset">Сүзгі</label>
+          <select id="photoPreset">
+            <option value="color">Түсті</option>
+            <option value="gray">Ақ-қара</option>
+            <option value="scan">Құжат сканы</option>
+          </select>
+        </div>
+        <div class="photo-sliders">
+          <div><label for="brightness">Жарықтық <output id="brightnessValue" for="brightness">0</output></label>
+            <input id="brightness" type="range" min="-50" max="50" value="0"></div>
+          <div><label for="contrast">Контраст <output id="contrastValue" for="contrast">0</output></label>
+            <input id="contrast" type="range" min="-50" max="50" value="0"></div>
+          <div><label for="sharpness">Айқындық <output id="sharpnessValue" for="sharpness">0</output></label>
+            <input id="sharpness" type="range" min="0" max="100" value="0"></div>
+        </div>
+        <div class="photo-actions">
+          <button id="applyPhoto" class="primary" disabled>Қолдану</button>
+          <button id="resetPhoto" class="text-button" disabled>Қалпына келтіру</button>
+        </div>
+      </fieldset>
       <div class="page-actions"><button id="replace" class="text-button" disabled>Бетті ауыстыру</button><div><button id="jpg" class="text-button" disabled>JPG жүктеу</button><button id="png" class="text-button" disabled>PNG жүктеу</button></div></div>
     </section>
     <aside class="panel export-panel" aria-label="PDF параметрлері">

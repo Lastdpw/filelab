@@ -1,8 +1,10 @@
-import {engine} from './engine.js?v=3';
+import {engine} from './engine.js?v=4';
 'use strict';
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels = {original:'Жоғары сапа',standard:'Орташа',small:'Шағын файл'};
+const photoDefaults = {preset:'color', brightness:0, contrast:0, sharpness:0};
+const photoSliders = ['brightness','contrast','sharpness'];
 let state={pages:[],revision:0,token:''}, selected=null, original=false, mode='original', comparison=null, busy=false, timer=null, comparisonVersion=0, previewVersion=0;
 const bytes = n => `${(n/1048576).toFixed(3).replace('.',',')} МиБ · ${n.toLocaleString('kk-KZ')} байт`;
 function status(text){$('status').textContent=text;}
@@ -10,9 +12,9 @@ function errors(messages=[]){$('errors').hidden=!messages.length;$('errors').tex
 async function request(path,body){return engine.request(path,body);}
 async function task(message, fn){
   if(busy)return;
-  busy=true;document.body.classList.add('busy');$('status').classList.add('busy');$('workspace').setAttribute('aria-busy','true');status(message);errors();
+  busy=true;$('photoTools').disabled=true;document.body.classList.add('busy');$('status').classList.add('busy');$('workspace').setAttribute('aria-busy','true');status(message);errors();
   try {await fn();} catch(error){errors([error.message]);status('Әрекет аяқталмады. Бұрын қосылған беттер сақталды.');}
-  finally{busy=false;document.body.classList.remove('busy');$('status').classList.remove('busy');$('workspace').setAttribute('aria-busy','false');}
+  finally{busy=false;$('photoTools').disabled=false;document.body.classList.remove('busy');$('status').classList.remove('busy');$('workspace').setAttribute('aria-busy','false');}
 }
 function accept(data){
   state=data;
@@ -25,17 +27,42 @@ function render(){
   $('sourceTotal').textContent=state.pages.length?`${state.pages.length}/40 бет · бастапқы файлдар: ${(state.sourceBytes/1048576).toFixed(2).replace('.',',')} МиБ`:'40 бетке дейін · сессия шегі 96 МиБ';
   $('clear').disabled=!state.pages.length;$('compare').disabled=!state.pages.length;
   $('pages').innerHTML=state.pages.map((p,i)=>`<article class="page-card ${selected===p.id?'selected':''}" draggable="false" data-id="${p.id}" tabindex="0" role="button" aria-label="${i+1}-бет: ${escapeHtml(p.title)}" aria-pressed="${selected===p.id}"><span class="page-number">${String(i+1).padStart(2,'0')}</span><img draggable="false" class="thumb" src="${imageUrl(p,true)}" alt="${i+1}-бет нобайы"><div class="card-body"><span class="card-title" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</span><span class="badge ${p.notes.length||p.orientation==='Қолмен тексеріңіз'?'warn':''}">${p.notes.length?'⚠ '+escapeHtml(p.notes.join(', ')):p.orientation==='Қолмен тексеріңіз'?'⚠ Қолмен тексеріңіз':'✓ '+escapeHtml(p.orientation)}</span></div><div class="order-actions"><button class="remove" data-action="delete" aria-label="${i+1}-бетті алып тастау">Өшіру</button><button data-action="up" aria-label="${i+1}-бетті жоғары жылжыту" ${i===0?'disabled':''}>↑</button><button data-action="down" aria-label="${i+1}-бетті төмен жылжыту" ${i===state.pages.length-1?'disabled':''}>↓</button></div></article>`).join('');
-  renderPreview();renderModes();
+  renderPreview();renderPhotoTools();renderModes();
+}
+function photoDiffers(first,second){
+  return Object.keys(photoDefaults).some(key=>first[key]!==second[key]);
+}
+function readPhotoControls(){
+  const edits={preset:$('photoPreset').value};
+  for(const key of photoSliders)edits[key]=$(key).valueAsNumber;
+  return edits;
+}
+function refreshPhotoButtons(){
+  const applied=state.pages.find(page=>page.id===selected)?.photo;
+  if(!applied)return;
+  const draft=readPhotoControls();
+  for(const key of photoSliders)$(key+'Value').value=draft[key];
+  $('applyPhoto').disabled=!photoDiffers(draft,applied);
+  $('resetPhoto').disabled=!photoDiffers(draft,photoDefaults)&&!photoDiffers(applied,photoDefaults);
+}
+function renderPhotoTools(){
+  const photo=state.pages.find(page=>page.id===selected)?.photo;
+  $('photoTools').hidden=!photo;
+  if(!photo)return;
+  $('photoPreset').value=photo.preset;
+  for(const key of photoSliders)$(key).value=photo[key];
+  refreshPhotoButtons();
 }
 function renderPreview(){
   const version=++previewVersion;
   const p=state.pages.find(p=>p.id===selected), index=state.pages.indexOf(p);
-  $('empty').hidden=!!p;$('preview').hidden=!p;$('views').hidden=!p||p.rotation===0;
+  const edited=!!p?.photo&&photoDiffers(p.photo,photoDefaults);
+  $('empty').hidden=!!p;$('preview').hidden=!p;$('views').hidden=!p||(!p.rotation&&!edited);
   $('original').classList.toggle('active',original);$('corrected').classList.toggle('active',!original);
   ['left','right','quality','orient','replace','jpg','png'].forEach(id=>$(id).disabled=!p);
   $('pagePosition').textContent=p?`${index+1} / ${state.pages.length} бет`:'Әзірге бет жоқ';
   $('pageTitle').textContent=p?p.title:'Бет таңдалмады';
-  $('previewLabel').textContent=p?(original?'Бастапқы бағыт':`${p.kind} · бұрылыс ${p.rotation}°`):'Сіздің жұмыс кеңістігіңіз';
+  $('previewLabel').textContent=p?(original?'Бастапқы көрініс':`${p.kind} · бұрылыс ${p.rotation}°`):'Сіздің жұмыс кеңістігіңіз';
   $('pageNotes').textContent=p?[p.orientation,...p.notes,`Модель дауысы: ${Math.round(p.vote*100)}%`].join(' · '):'Суреттер мен PDF беттері осында көрсетіледі.';
   if(p){
     engine.preview(p,original).then(url=>{if(version===previewVersion)$('preview').src=url;})
@@ -98,6 +125,9 @@ $('left').onclick=()=>changed('/api/rotate',{id:selected,angle:-90});
 $('right').onclick=()=>changed('/api/rotate',{id:selected,angle:90});
 $('quality').onclick=()=>changed('/api/quality',{id:selected});
 $('orient').onclick=()=>changed('/api/orient',{id:selected});
+$('photoTools').oninput=refreshPhotoButtons;
+$('applyPhoto').onclick=()=>changed('/api/photo-filter',{id:selected,...readPhotoControls()});
+$('resetPhoto').onclick=()=>changed('/api/photo-filter',{id:selected,...photoDefaults});
 $('original').onclick=()=>{original=true;renderPreview();};$('corrected').onclick=()=>{original=false;renderPreview();};
 $('compare').onclick=()=>task('Үш PDF нұсқасының нақты көлемі есептеліп жатыр…',compare);
 $('modes').onclick=e=>{const button=e.target.closest('[data-mode]');if(button&&!busy){mode=button.dataset.mode;renderModes();}};
