@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; font-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="description" content="Файлдарды реттеп, тексеріп, тапсырмаға дайын PDF жасаңыз. Барлығы осы компьютерде.">
   <title>FileLab · Студенттің файл шеберханасы</title>
-  <link rel="stylesheet" href="./style.css?v=4"><script type="module" src="./app.js?v=4"></script>
+  <link rel="stylesheet" href="./style.css?v=4"><script type="module" src="./app.js?v=5"></script>
 </head>
 <body>
 <header class="topbar">
@@ -21,8 +21,8 @@
       <div class="panel-heading"><h2>Беттер <span id="count" class="count">0</span></h2><button id="clear" class="text-button" disabled>Тазарту</button></div>
       <p class="panel-hint">Ретін өзгерту үшін сүйреңіз</p>
       <div id="pages" class="pages-list"></div>
-      <button id="dropzone" class="dropzone"><span class="upload-symbol" aria-hidden="true">↑</span><strong>Файлдарды осында тастаңыз</strong><span>немесе таңдау үшін басыңыз</span><small>JPG, PNG, PDF · әр файл 64 МиБ дейін</small></button>
-      <div class="source-total" id="sourceTotal">40 бетке дейін · сессия шегі 96 МиБ</div>
+      <button id="dropzone" class="dropzone"><span class="upload-symbol" aria-hidden="true">↑</span><strong>Файлдарды осында тастаңыз</strong><span>немесе таңдау үшін басыңыз</span><small>JPG, PNG, PDF · бір файлға шамамен 67,1 МБ</small></button>
+      <div class="source-total" id="sourceTotal">40 бетке дейін · сессияға шамамен 100,7 МБ</div>
     </aside>
     <section class="panel preview-panel" aria-label="Бет көрінісі">
       <div class="panel-heading"><h2>Бет көрінісі</h2><span id="pagePosition" class="muted small">Әзірге бет жоқ</span></div>
@@ -61,7 +61,7 @@
     <aside class="panel export-panel" aria-label="PDF параметрлері">
       <div class="panel-heading"><h2>Тапсыруға дайын</h2><span class="pdf-badge">PDF</span></div><p class="panel-hint">LMS шегіне сай файл дайындаңыз</p>
       <label for="range">Бет аралығы</label><input id="range" placeholder="Барлық бет" autocomplete="off"><small class="field-hint">Бос болса — барлық бет. Мысалы: 1, 3-5</small>
-      <div class="limit-heading"><label for="limit">Тапсыру шегі</label><span>МиБ</span></div><input id="limit" inputmode="decimal" value="0,23" autocomplete="off"><small class="field-hint">1 МиБ = 1 048 576 байт</small>
+      <div class="limit-heading"><label for="limit">Тапсыру шегі (МБ)</label></div><input id="limit" inputmode="decimal" value="10" autocomplete="off"><small class="field-hint">1 МБ = 1 000 000 байт</small>
       <div class="divider"></div><h3 class="mode-heading">Сапа және нақты көлем</h3><div id="modes" class="modes" role="radiogroup" aria-label="PDF сапа режимі"></div>
       <p class="raster-note">Орташа және шағын режимдерде PDF беттері суретке айналады. Таңдалатын мәтін жоғары сапада сақталады.</p>
       <button id="compare" class="secondary full" disabled>Көлемдерді салыстыру</button>

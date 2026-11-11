@@ -1,4 +1,4 @@
-import {engine} from './engine.js?v=4';
+import {engine} from './engine.js?v=5';
 'use strict';
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -6,7 +6,10 @@ const labels = {original:'Жоғары сапа',standard:'Орташа',small:'
 const photoDefaults = {preset:'color', brightness:0, contrast:0, sharpness:0};
 const photoSliders = ['brightness','contrast','sharpness'];
 let state={pages:[],revision:0,token:''}, selected=null, original=false, mode='original', comparison=null, busy=false, timer=null, comparisonVersion=0, previewVersion=0;
-const bytes = n => `${(n/1048576).toFixed(3).replace('.',',')} МиБ · ${n.toLocaleString('kk-KZ')} байт`;
+const MB = 1_000_000;
+const megabytes = (n,digits=3) => `${(n/MB).toFixed(digits).replace('.',',')} МБ`;
+const bytes = n => `${megabytes(n)} · ${n.toLocaleString('kk-KZ')} байт`;
+const sourceLimitHint = $('sourceTotal').textContent;
 function status(text){$('status').textContent=text;}
 function errors(messages=[]){$('errors').hidden=!messages.length;$('errors').textContent=messages.join('\n');}
 async function request(path,body){return engine.request(path,body);}
@@ -24,7 +27,7 @@ function accept(data){
 function imageUrl(page){return page.thumb;}
 function render(){
   $('count').textContent=state.pages.length;
-  $('sourceTotal').textContent=state.pages.length?`${state.pages.length}/40 бет · бастапқы файлдар: ${(state.sourceBytes/1048576).toFixed(2).replace('.',',')} МиБ`:'40 бетке дейін · сессия шегі 96 МиБ';
+  $('sourceTotal').textContent=state.pages.length?`${state.pages.length}/40 бет · бастапқы файлдар: ${megabytes(state.sourceBytes,2)}`:sourceLimitHint;
   $('clear').disabled=!state.pages.length;$('compare').disabled=!state.pages.length;
   $('pages').innerHTML=state.pages.map((p,i)=>`<article class="page-card ${selected===p.id?'selected':''}" draggable="false" data-id="${p.id}" tabindex="0" role="button" aria-label="${i+1}-бет: ${escapeHtml(p.title)}" aria-pressed="${selected===p.id}"><span class="page-number">${String(i+1).padStart(2,'0')}</span><img draggable="false" class="thumb" src="${imageUrl(p,true)}" alt="${i+1}-бет нобайы"><div class="card-body"><span class="card-title" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</span><span class="badge ${p.notes.length||p.orientation==='Қолмен тексеріңіз'?'warn':''}">${p.notes.length?'⚠ '+escapeHtml(p.notes.join(', ')):p.orientation==='Қолмен тексеріңіз'?'⚠ Қолмен тексеріңіз':'✓ '+escapeHtml(p.orientation)}</span></div><div class="order-actions"><button class="remove" data-action="delete" aria-label="${i+1}-бетті алып тастау">Өшіру</button><button data-action="up" aria-label="${i+1}-бетті жоғары жылжыту" ${i===0?'disabled':''}>↑</button><button data-action="down" aria-label="${i+1}-бетті төмен жылжыту" ${i===state.pages.length-1?'disabled':''}>↓</button></div></article>`).join('');
   renderPreview();renderPhotoTools();renderModes();
@@ -94,7 +97,6 @@ async function upload(files,target=null){
   await task('Файлдар қосылып, бағыты мен сапасы тексеріліп жатыр…',async()=>{
     let issues=[],added=0;
     for(const file of list){
-      if(file.size>64*1048576){issues.push(`${file.name}: бір файлдың көлемі 64 МиБ-тан аспауы керек.`);continue;}
       const body=new FormData();body.append('files',file);
       try{
         const position=target?state.pages.findIndex(page=>page.id===target):state.pages.length;

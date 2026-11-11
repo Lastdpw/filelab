@@ -1,9 +1,10 @@
 """Browser adapter: original FileLab logic runs locally in Pyodide."""
 from __future__ import annotations
 from dataclasses import asdict, dataclass, field, replace
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
-import hashlib, json, math, secrets, sys, tempfile, time, types
+import hashlib, json, secrets, sys, tempfile, time, types
 sys.modules['pypdfium2'] = types.ModuleType('pypdfium2')
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
@@ -13,6 +14,7 @@ ROOT=Path.cwd()
 RUNTIME=Path(tempfile.mkdtemp(prefix='filelab-browser-'))
 MODEL=OrientationModel.load()
 SESSION_LIMIT=96*MIB
+MB = 1_000_000
 PDF_RASTERS={}
 _base_image=Page.image
 
@@ -159,9 +161,9 @@ class Session:
         if suffix not in {".jpg", ".jpeg", ".png", ".pdf"}:
             raise ValueError("JPG, JPEG, PNG немесе PDF файлын таңдаңыз.")
         if len(data) > MAX_SOURCE_BYTES:
-            raise ValueError("Бір файлдың көлемі 64 МиБ-тан аспауы керек.")
+            raise ValueError("Бір файлдың шегі — шамамен 67,1 МБ.")
         if self.source_bytes() + len(data) > SESSION_LIMIT:
-            raise ValueError("Сессиядағы файлдардың жалпы шегі — 96 МиБ.")
+            raise ValueError("Сессиядағы файлдардың жалпы шегі — шамамен 100,7 МБ.")
         if suffix == ".pdf":
             if not data.startswith(b"%PDF-"):
                 raise ValueError("Файлдың мазмұны PDF түріне сәйкес емес.")
@@ -184,7 +186,7 @@ class Session:
             try:
                 pages = read_pages(path)
             except ValueError as error:
-                if any(word in str(error) for word in ("PDF құжатында", "Құпиясөз", "МиБ", "мегапиксель")):
+                if any(word in str(error) for word in ("PDF құжатында", "Құпиясөз", "мегапиксель")):
                     raise
                 raise ValueError("Құжат ашылмады: файл бүлінген немесе пішімі қолдау таппайды.")
             except Exception:
@@ -220,18 +222,18 @@ class Session:
         if not indices:
             raise ValueError("Алдымен кемінде бір бет қосыңыз.")
         try:
-            bound = float(str(limit).replace(",", "."))
-            if not math.isfinite(bound) or bound <= 0:
+            bound = Decimal(str(limit).replace(",", "."))
+            if not bound.is_finite() or bound <= 0:
                 raise ValueError()
-        except (ValueError, TypeError):
-            raise ValueError("Көлем шегін оң санмен жазыңыз. Мысалы: 0,23.")
+        except (InvalidOperation, ValueError):
+            raise ValueError("Көлем шегін оң санмен жазыңыз. Мысалы: 10 немесе 2,5.")
         key = tuple(indices)
         if self.exports.get("key") != key:
             pages = [self.items[i].page for i in indices]
             variants = {mode: create_pdf(pages, mode) for mode in PRESETS}
             self.exports = dict(key=key, variants=variants)
         sizes = {mode: len(data) for mode, data in self.exports["variants"].items()}
-        fits = {mode: size <= bound * MIB for mode, size in sizes.items()}
+        fits = {mode: Decimal(size) / MB <= bound for mode, size in sizes.items()}
         recommended = next((mode for mode in PRESETS if fits[mode]), None)
         return dict(sizes=sizes, fits=fits, recommended=recommended,
                     revision=self.revision, count=len(indices), range=spec)

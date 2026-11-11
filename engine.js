@@ -56,9 +56,9 @@ async function rasterPdf(data){
 }
 function documentCanvas(width,height){const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;return canvas;}
 async function upload(file,target){
-  if(file.size>64*1048576)throw new Error('Бір файлдың көлемі 64 МиБ-тан аспауы керек.');
+  if(file.size>64*1048576)throw new Error('Бір файлдың шегі — шамамен 67,1 МБ.');
   const current=await rpc('state');
-  if(current.sourceBytes+file.size>96*1048576)throw new Error('Сессиядағы файлдардың жалпы шегі — 96 МиБ.');
+  if(current.sourceBytes+file.size>96*1048576)throw new Error('Сессиядағы файлдардың жалпы шегі — шамамен 100,7 МБ.');
   const bytes=new Uint8Array(await file.arrayBuffer());let rasters=[];
   if(file.name.toLowerCase().endsWith('.pdf')){
     if(new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw new Error('Файлдың мазмұны PDF түріне сәйкес емес.');
