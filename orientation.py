@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 ANGLES = (0, 90, 180, 270)  # clockwise orientation relative to upright
@@ -44,11 +44,32 @@ class OrientationModel:
         with np.load(path, allow_pickle=False) as data:
             return cls(data["samples"], data["labels"])
 
-    def predict(self, image: Image.Image) -> tuple[int, float]:
+    def _votes(self, image: Image.Image) -> np.ndarray:
         sample = features(image)
         distances = ((self.samples - sample) ** 2).mean(axis=1)
         nearest = np.argsort(distances)[:9]
         weights = 1 / (distances[nearest] + 0.000001)
         votes = np.bincount(self.labels[nearest], weights=weights, minlength=4)
+        return votes / votes.sum()
+
+    def predict(self, image: Image.Image) -> tuple[int, float]:
+        votes = self._votes(image)
         winner = int(votes.argmax())
-        return ANGLES[winner], float(votes[winner] / votes.sum())
+        return ANGLES[winner], float(votes[winner])
+
+    def predict_photo(self, image: Image.Image) -> tuple[int, float, bool]:
+        gray = image.convert("L")
+        # Estimate the local paper brightness so shadows don't count as ink.
+        paper = gray.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(6))
+        ink = np.asarray(paper, dtype=np.float32) - np.asarray(gray, dtype=np.float32)
+        normalized = Image.fromarray(np.clip(255 - 3 * ink, 0, 255).astype(np.uint8))
+
+        # Translate every vote back to the uploaded orientation before averaging.
+        votes = np.mean([
+            np.roll(self._votes(rotate(normalized, angle)), -angle // 90)
+            for angle in ANGLES
+        ], axis=0)
+        winner = int(votes.argmax())
+        confidence = float(votes[winner])
+        has_ink = np.mean(ink > 30) >= 0.006
+        return ANGLES[winner], confidence, bool(has_ink and confidence >= 0.60)

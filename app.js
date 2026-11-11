@@ -1,9 +1,9 @@
-import {engine} from './engine.js';
+import {engine} from './engine.js?v=2';
 'use strict';
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels = {original:'Жоғары сапа',standard:'Орташа',small:'Шағын файл'};
-let state={pages:[],revision:0,token:''}, selected=null, original=false, mode='original', comparison=null, busy=false, timer=null, comparisonVersion=0;
+let state={pages:[],revision:0,token:''}, selected=null, original=false, mode='original', comparison=null, busy=false, timer=null, comparisonVersion=0, previewVersion=0;
 const bytes = n => `${(n/1048576).toFixed(3).replace('.',',')} МиБ · ${n.toLocaleString('kk-KZ')} байт`;
 function status(text){$('status').textContent=text;}
 function errors(messages=[]){$('errors').hidden=!messages.length;$('errors').textContent=messages.join('\n');}
@@ -28,6 +28,7 @@ function render(){
   renderPreview();renderModes();
 }
 function renderPreview(){
+  const version=++previewVersion;
   const p=state.pages.find(p=>p.id===selected), index=state.pages.indexOf(p);
   $('empty').hidden=!!p;$('preview').hidden=!p;$('views').hidden=!p||p.rotation===0;
   $('original').classList.toggle('active',original);$('corrected').classList.toggle('active',!original);
@@ -36,7 +37,11 @@ function renderPreview(){
   $('pageTitle').textContent=p?p.title:'Бет таңдалмады';
   $('previewLabel').textContent=p?(original?'Бастапқы бағыт':`${p.kind} · бұрылыс ${p.rotation}°`):'Сіздің жұмыс кеңістігіңіз';
   $('pageNotes').textContent=p?[p.orientation,...p.notes,`Модель дауысы: ${Math.round(p.vote*100)}%`].join(' · '):'Суреттер мен PDF беттері осында көрсетіледі.';
-  if(p){const selectedId=p.id, viewOriginal=original;engine.preview(p,original).then(url=>{if(selected===selectedId&&original===viewOriginal)$('preview').src=url;}).catch(error=>errors([error.message]));$('preview').alt=`${index+1}-бет: ${p.title}, ${original?'бастапқы':'ағымдағы'} көрініс`;}
+  if(p){
+    engine.preview(p,original).then(url=>{if(version===previewVersion)$('preview').src=url;})
+      .catch(error=>{if(version===previewVersion)errors([error.message]);});
+    $('preview').alt=`${index+1}-бет: ${p.title}, ${original?'бастапқы':'ағымдағы'} көрініс`;
+  }
   else $('preview').removeAttribute('src');
 }
 function renderModes(){
@@ -64,7 +69,12 @@ async function upload(files,target=null){
     for(const file of list){
       if(file.size>64*1048576){issues.push(`${file.name}: бір файлдың көлемі 64 МиБ-тан аспауы керек.`);continue;}
       const body=new FormData();body.append('files',file);
-      try{const result=await request('/api/upload'+(target?'?replace='+encodeURIComponent(target):''),body);added+=result.added;issues.push(...result.errors);accept(result);}catch(e){issues.push(`${file.name}: ${e.message}`);}
+      try{
+        const position=target?state.pages.findIndex(page=>page.id===target):state.pages.length;
+        const result=await request('/api/upload'+(target?'?replace='+encodeURIComponent(target):''),body);
+        if(result.added&&!added)selected=result.pages[position].id;
+        added+=result.added;issues.push(...result.errors);accept(result);
+      }catch(e){issues.push(`${file.name}: ${e.message}`);}
     }
     if(state.pages.length)await compare();errors(issues);status(`${added} бет ${target?'ауыстырылды':'қосылды'}. Барлығы ${state.pages.length} бет.${issues.length?' Кей файлдар қосылмады.':''}`);
   });
@@ -128,5 +138,10 @@ document.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('Files
 document.addEventListener('dragleave',e=>{if(!e.relatedTarget)$('workspace').classList.remove('dragging');});
 document.addEventListener('drop',e=>{e.preventDefault();$('workspace').classList.remove('dragging');if(e.dataTransfer.files.length)upload(e.dataTransfer.files);});
 $('preview').onerror=()=>{errors(['Таңдалған бетті көрсету мүмкін болмады. Сессия аяқталса, файлды қайта қосыңыз.']);};
-task('Браузердегі өңдеу модулі жүктеліп жатыр… Алғаш ашқанда біраз уақыт кетеді.',async()=>{accept(await request('/api/state'));status('Өңдеу модулі дайын. Файлдар осы браузерде өңделеді.');});
+status('Браузердегі өңдеу модулі жүктеліп жатыр… Алғаш ашқанда біраз уақыт кетеді.');
+request('/api/state').then(result=>{
+  if(busy)return;
+  accept(result);
+  status('Өңдеу модулі дайын. Файлдар осы браузерде өңделеді.');
+}).catch(error=>{if(!busy)errors([error.message]);});
 

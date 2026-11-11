@@ -39,10 +39,14 @@ class Item:
         self.notes = quality_notes(self.page.image(500))
         if orient:
             image = on_white(self.page.image(600))
-            histogram = image.convert("L").histogram()
-            ink = sum(histogram[:165]) / (image.width * image.height)
-            self.predicted, self.vote = MODEL.predict(image)
-            if ink < 0.017 or self.vote < 0.65:
+            if self.page.index is None:
+                self.predicted, self.vote, confident = MODEL.predict_photo(image)
+            else:
+                histogram = image.convert("L").histogram()
+                ink = sum(histogram[:165]) / (image.width * image.height)
+                self.predicted, self.vote = MODEL.predict(image)
+                confident = ink >= 0.017 and self.vote >= 0.65
+            if not confident:
                 self.orientation = "Қолмен тексеріңіз"
             elif self.predicted:
                 self.page.rotation = (self.page.rotation - self.predicted) % 360

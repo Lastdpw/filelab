@@ -1,6 +1,6 @@
 import * as pdfjs from './pdf.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc=new URL('./pdf.worker.mjs',import.meta.url).href;
-const worker=new Worker(new URL('./worker.js',import.meta.url));
+const worker=new Worker(new URL('./worker.js'+new URL(import.meta.url).search,import.meta.url));
 let sequence=0;
 const pending=new Map(), urls=new Map();
 worker.onmessage=({data})=>{const p=pending.get(data.id);if(!p)return;pending.delete(data.id);data.error?p.reject(new Error(data.error)):p.resolve(data.result);};

@@ -9,7 +9,7 @@ const ready=(async()=>{
     py.unpackArchive(await response.arrayBuffer(),'zip',{extractDir:'/home/pyodide'});
   }
   for(const file of ['orientation.py','documents.py','orientation_model.npz','browser_core.py']){
-    const response=await fetch('./'+file);if(!response.ok)throw Error('Қолданба файлы жүктелмеді: '+file);
+    const response=await fetch('./'+file+new URL(self.location.href).search);if(!response.ok)throw Error('Қолданба файлы жүктелмеді: '+file);
     py.FS.writeFile('/home/pyodide/'+file,new Uint8Array(await response.arrayBuffer()));
   }
   await py.runPythonAsync('from browser_core import dispatch');
