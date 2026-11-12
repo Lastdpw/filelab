@@ -1,5 +1,6 @@
-import * as pdfjs from './pdf.mjs';
-pdfjs.GlobalWorkerOptions.workerSrc=new URL('./pdf.worker.mjs',import.meta.url).href;
+import * as pdfjs from '../vendor/pdfjs/pdf.mjs';
+const pdfRuntime=new URL('../vendor/pdfjs/',import.meta.url);
+pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdf.worker.mjs',pdfRuntime).href;
 const worker=new Worker(new URL('./worker.js'+new URL(import.meta.url).search,import.meta.url));
 let sequence=0;
 const pending=new Map(), urls=new Map();
@@ -34,7 +35,7 @@ async function withImages(state){
 async function rasterPdf(data){
   let document;
   try{
-    document=await pdfjs.getDocument({data:data.slice(),isEvalSupported:false,useSystemFonts:true,disableFontFace:false,wasmUrl:new URL('./',import.meta.url).href}).promise;
+    document=await pdfjs.getDocument({data:data.slice(),isEvalSupported:false,useSystemFonts:true,disableFontFace:false,wasmUrl:pdfRuntime.href}).promise;
     if(document.numPages<1||document.numPages>40)throw new Error('PDF құжатында 1–40 бет болуы керек.');
     const rasters=[];let total=0;
     for(let i=1;i<=document.numPages;i++){
@@ -75,7 +76,7 @@ export const engine={
     }else if(action==='demo'){
       let issues=[],added=0;
       for(const name of ['01-upright.png','02-sideways.png','03-upside-down.png','04-blurry.png']){
-        const response=await fetch('./'+name);if(!response.ok)throw new Error('Демо бет жүктелмеді: '+name);
+        const response=await fetch(new URL('../assets/demo/'+name,import.meta.url));if(!response.ok)throw new Error('Демо бет жүктелмеді: '+name);
         result=await upload(new File([await response.blob()],name),null);added+=result.added;issues.push(...result.errors);
       }
       result.added=added;result.errors=issues;

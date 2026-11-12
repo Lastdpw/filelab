@@ -1,15 +1,19 @@
 /* Python executes inside this browser worker. No user file is sent to a server. */
-importScripts('./pyodide.js');
+const workerUrl=new URL(self.location.href);
+const pythonRuntime=new URL('../vendor/pyodide/',workerUrl);
+importScripts(new URL('pyodide.js',pythonRuntime).href);
 let py, dispatch, queue=Promise.resolve();
 const ready=(async()=>{
-  py=await loadPyodide({indexURL:new URL('./',self.location.href).href});
+  py=await loadPyodide({indexURL:pythonRuntime.href});
   await py.loadPackage(['numpy','pillow']);
   for(const file of ['pypdf-6.10.0-py3-none-any.whl','reportlab-4.4.9-py3-none-any.whl','charset_normalizer.zip']){
-    const response=await fetch('./'+file);if(!response.ok)throw Error('Кітапхана жүктелмеді: '+file);
+    const response=await fetch(new URL(file,pythonRuntime));if(!response.ok)throw Error('Кітапхана жүктелмеді: '+file);
     py.unpackArchive(await response.arrayBuffer(),'zip',{extractDir:'/home/pyodide'});
   }
   for(const file of ['orientation.py','documents.py','orientation_model.npz','browser_core.py']){
-    const response=await fetch('./'+file+new URL(self.location.href).search);if(!response.ok)throw Error('Қолданба файлы жүктелмеді: '+file);
+    const url=new URL('../core/'+file,workerUrl);
+    url.search=workerUrl.search;
+    const response=await fetch(url);if(!response.ok)throw Error('Қолданба файлы жүктелмеді: '+file);
     py.FS.writeFile('/home/pyodide/'+file,new Uint8Array(await response.arrayBuffer()));
   }
   await py.runPythonAsync('from browser_core import dispatch');
